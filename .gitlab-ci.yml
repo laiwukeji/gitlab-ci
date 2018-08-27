@@ -1,0 +1,48 @@
+variables:
+  siteName: "citest"
+  imagesName: "lchpersonal/tomcat8-jdk8:v1"
+  containerName: "gitlabtest_container"
+  siteLocation: "/home/site"
+  containerSiteLocation: "/usr/local/tomcat/webapps/ROOT"
+  host_port: "8082"
+  container_port: "8080"
+#之前的版本，这个cache放到devDeploy最后面也是生效的。此版本用的是11.2.1-ee，却不行
+cache:
+    key: "CI_BUILD_STAGE"
+    paths:
+    - target/
+
+before_script:
+# 关闭docker容器，删除容器
+- if [ "$(docker ps -a | grep $containerName)" ]; then
+- docker stop $containerName
+- docker rm -f $containerName
+- fi
+# 清理项目目录
+- if [ -d "$siteLocation/$siteName" ]; then
+- sudo rm -rf $siteLocation/$siteName
+- fi
+- sudo mkdir -p $siteLocation/$siteName
+
+devBuild:
+  stage: build
+  script:
+  - mvn clean package -DskipTests -U
+  - pwd
+  - ls
+  only:
+  - master
+  tags:
+  - test
+
+devDeploy:
+  stage: deploy
+  script:
+  - pwd
+  - sudo cp target/$siteName.war $siteLocation/
+  - unzip -qo $siteLocation/$siteName.war -d $siteLocation/$siteName/
+  - docker run -d -p $host_port:$container_port --name $containerName -v $siteLocation/$siteName:$containerSiteLocation $imagesName catalina.sh run
+  only:
+  - master
+  tags:
+  - test
